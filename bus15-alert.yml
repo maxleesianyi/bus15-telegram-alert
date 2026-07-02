@@ -2,10 +2,6 @@ name: Bus 15 Telegram Alert
 
 on:
   workflow_dispatch:
-  schedule:
-    # GitHub cron uses UTC. These are 8:15, 8:30, 8:45, 9:00, 9:15 AM Singapore time.
-    - cron: "15,30,45 0 * * 1-5"
-    - cron: "0,15 1 * * 1-5"
 
 jobs:
   notify:

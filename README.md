@@ -1,12 +1,24 @@
 # Bus 15 Telegram Alert
 
-A small GitHub Actions automation that checks real-time LTA bus arrivals for Bus 15 at stop `75591` on weekday mornings, then sends a private Telegram message with the next and subsequent bus timings.
+A small Supabase scheduler that checks real-time LTA bus arrivals for Bus 15 at stop `75591` on weekday mornings, then sends a private Telegram message with the next and subsequent bus timings.
 
 The alert is designed around a 10 minute walk to the bus stop plus a 2 minute safety buffer. If the next bus is too soon to catch, it recommends the subsequent bus instead.
 
+## Current Setup
+
+This project now uses Supabase as the reliable scheduler:
+
+- Supabase Edge Function: `bus15-telegram-alert`
+- Supabase Cron jobs:
+  - `bus15-alert-8am`
+  - `bus15-alert-9am`
+- GitHub Actions: manual testing only
+
+The old GitHub scheduled trigger has been removed because GitHub Actions scheduled jobs can run late.
+
 ## Schedule
 
-The workflow runs on weekdays at these Singapore times:
+Supabase Cron runs on weekdays at these Singapore times:
 
 - 8:15 AM
 - 8:30 AM
@@ -14,7 +26,12 @@ The workflow runs on weekdays at these Singapore times:
 - 9:00 AM
 - 9:15 AM
 
-GitHub schedules are based on UTC, so the workflow file stores these as `00:15`, `00:30`, `00:45`, `01:00`, and `01:15` UTC. GitHub may occasionally start scheduled jobs a minute or two late.
+The cron expressions are stored in UTC:
+
+| UTC cron | Singapore time |
+| --- | --- |
+| `15,30,45 0 * * 1-5` | 8:15, 8:30, 8:45 AM weekdays |
+| `0,15 1 * * 1-5` | 9:00, 9:15 AM weekdays |
 
 ## What The Telegram Message Includes
 
@@ -35,25 +52,15 @@ If it is already time to leave, the message says:
 Leave now for the next bus. It arrives in 11 min.
 ```
 
-## GitHub Setup
+## Supabase Setup
 
-1. Create a new GitHub repository.
-2. Upload the contents of this folder as the repository contents.
-3. In the repository, open **Settings**.
-4. Open **Secrets and variables** > **Actions**.
-5. Add these repository secrets:
+See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the Edge Function, Cron, Vault, and secret setup.
 
-| Secret name | Value |
-| --- | --- |
-| `LTA_ACCOUNT_KEY` | Your LTA DataMall AccountKey |
-| `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from BotFather |
-| `TELEGRAM_CHAT_ID` | Your Telegram chat ID |
+## GitHub Actions
 
-6. Open the **Actions** tab.
-7. Select **Bus 15 Telegram Alert**.
-8. Use **Run workflow** to send a manual test message.
+The GitHub workflow is kept only for manual testing from the **Actions** tab. It does not run on a schedule.
 
-After that, the weekday schedule will run automatically.
+If you use Supabase as the live scheduler, do not re-enable the GitHub scheduled trigger unless you want duplicate Telegram alerts.
 
 ## Local Test
 
@@ -71,7 +78,7 @@ DRY_RUN=true
 
 ## Adjusting The Automation
 
-You can change the behavior in `.github/workflows/bus15-alert.yml`:
+For the Supabase scheduler, update these values in Supabase Edge Function secrets:
 
 | Setting | Default |
 | --- | --- |
