@@ -4,6 +4,8 @@ A small Supabase scheduler that checks real-time LTA bus arrivals for Bus 15 at 
 
 The alert is designed around a 10 minute walk to the bus stop plus a 2 minute safety buffer. If the next bus is too soon to catch, it recommends the subsequent bus instead.
 
+You can also reply to the Telegram bot with `stop`, `pause`, or `done` to silence the remaining alerts for the current Singapore calendar day. Reply `resume` or `start` to reactivate alerts for the same day.
+
 ## Current Setup
 
 This project now uses Supabase as the reliable scheduler:
@@ -12,6 +14,7 @@ This project now uses Supabase as the reliable scheduler:
 - Supabase Cron jobs:
   - `bus15-alert-8am`
   - `bus15-alert-9am`
+- Telegram reply commands for pausing/resuming the current day
 - GitHub Actions: manual testing only
 
 The old GitHub scheduled trigger has been removed because GitHub Actions scheduled jobs can run late.
@@ -55,6 +58,12 @@ Leave now for the next bus. It arrives in 11 min.
 ## Supabase Setup
 
 See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the Edge Function, Cron, Vault, and secret setup.
+
+## Releases
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and [RELEASE_PROCESS.md](RELEASE_PROCESS.md) for the release checklist.
+
+Release note drafts are kept in [releases](releases/).
 
 ## GitHub Actions
 

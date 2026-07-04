@@ -58,7 +58,7 @@ def load_dotenv_if_present(path: Path = Path(".env")) -> None:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        name, value = line.split("=", 1)
+        name, value = line.lstrip("\ufeff").split("=", 1)
         os.environ.setdefault(name.strip(), value.strip().strip('"').strip("'"))
 
 
@@ -84,6 +84,16 @@ def read_config() -> Config:
         buffer_minutes=int(os.getenv("BUFFER_MINUTES", "2")),
         dry_run=dry_run,
     )
+
+
+def should_send_for_current_time(now: datetime) -> bool:
+    if os.getenv("GITHUB_EVENT_NAME") != "schedule":
+        return True
+
+    is_weekday = now.weekday() < 5
+    window_start = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    window_end = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    return is_weekday and window_start <= now <= window_end
 
 
 def fetch_bus_arrivals(config: Config) -> dict[str, Any]:
@@ -230,6 +240,10 @@ def main() -> int:
     try:
         config = read_config()
         now = datetime.now(SINGAPORE_TZ)
+        if not should_send_for_current_time(now):
+            print(f"Skipped because current Singapore time is outside the alert window: {now.isoformat()}")
+            return 0
+
         payload = fetch_bus_arrivals(config)
         arrivals = parse_arrivals(payload, now)
         message = compose_message(config, arrivals, now)

@@ -53,3 +53,40 @@ Disable the old schedulers after Supabase is working:
 
 - GitHub Actions workflow
 - Codex Automations for Bus 15
+
+## 5. Telegram Reply Commands
+
+Version `0.4.0` supports replying to the bot to pause or resume alerts for the current Singapore calendar day.
+
+Pause commands:
+
+```text
+stop
+pause
+done
+```
+
+Resume commands:
+
+```text
+resume
+start
+```
+
+Unknown messages receive a short help reply.
+
+Only the configured `TELEGRAM_CHAT_ID` is allowed to control the scheduler.
+
+## 6. Register The Telegram Webhook
+
+After deploying the `0.4.0` Edge Function, register the Telegram webhook once.
+
+Webhook URL:
+
+```text
+https://dqcfmnghiehggsosjkdj.supabase.co/functions/v1/bus15-telegram-alert
+```
+
+The Telegram webhook `secret_token` must be the same value as your Supabase `CRON_SECRET`.
+
+Do not commit the bot token or secret token to GitHub.

@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const LTA_BUS_ARRIVAL_URL = "https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival";
 const SINGAPORE_TIME_ZONE = "Asia/Singapore";
+const PAUSE_COMMANDS = new Set(["stop", "pause", "done"]);
+const RESUME_COMMANDS = new Set(["resume", "start"]);
 
 type BusArrival = {
   label: string;
@@ -17,6 +19,8 @@ type Config = {
   walkMinutes: number;
   bufferMinutes: number;
   cronSecret: string;
+  supabaseUrl: string;
+  supabaseServiceRoleKey: string;
 };
 
 function requiredEnv(name: string): string {
@@ -37,6 +41,8 @@ function readConfig(): Config {
     walkMinutes: Number(Deno.env.get("WALK_MINUTES") || "10"),
     bufferMinutes: Number(Deno.env.get("BUFFER_MINUTES") || "2"),
     cronSecret: requiredEnv("CRON_SECRET"),
+    supabaseUrl: requiredEnv("SUPABASE_URL"),
+    supabaseServiceRoleKey: requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
   };
 }
 
@@ -47,12 +53,24 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
-function assertAuthorized(req: Request, config: Config): Response | null {
-  const providedSecret = req.headers.get("x-cron-secret")?.trim();
-  if (providedSecret !== config.cronSecret) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
-  }
-  return null;
+function isCronRequest(req: Request, config: Config): boolean {
+  return req.headers.get("x-cron-secret")?.trim() === config.cronSecret;
+}
+
+function isTelegramWebhookRequest(req: Request, config: Config): boolean {
+  return req.headers.get("x-telegram-bot-api-secret-token")?.trim() === config.cronSecret;
+}
+
+function singaporeDateString(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-SG", {
+    timeZone: SINGAPORE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const part = (type: string) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 function minutesUntil(arrivalTime: Date | null, now: Date): number | null {
@@ -145,6 +163,66 @@ function composeMessage(config: Config, arrivals: BusArrival[], now: Date): stri
   return lines.join("\n");
 }
 
+function normalizeCommand(text: string): string {
+  const firstWord = text.trim().toLowerCase().split(/\s+/)[0] || "";
+  return firstWord.replace(/^\/+/, "").split("@")[0];
+}
+
+async function supabaseFetch(config: Config, path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set("apikey", config.supabaseServiceRoleKey);
+  headers.set("Authorization", `Bearer ${config.supabaseServiceRoleKey}`);
+  headers.set("Content-Type", "application/json");
+
+  return await fetch(`${config.supabaseUrl}/rest/v1/${path}`, {
+    ...init,
+    headers,
+  });
+}
+
+async function isPausedToday(config: Config, date: string): Promise<boolean> {
+  const response = await supabaseFetch(
+    config,
+    `bus15_daily_pauses?pause_date=eq.${encodeURIComponent(date)}&select=pause_date&limit=1`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Pause lookup returned ${response.status}`);
+  }
+
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+async function pauseToday(config: Config, date: string, chatId: string): Promise<void> {
+  const response = await supabaseFetch(config, "bus15_daily_pauses", {
+    method: "POST",
+    headers: {
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify({
+      pause_date: date,
+      reason: "telegram_command",
+      source_chat_id: chatId,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Pause write returned ${response.status}`);
+  }
+}
+
+async function resumeToday(config: Config, date: string): Promise<void> {
+  const response = await supabaseFetch(config, `bus15_daily_pauses?pause_date=eq.${encodeURIComponent(date)}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Pause delete returned ${response.status}`);
+  }
+}
+
 async function fetchBusArrivals(config: Config): Promise<any> {
   const url = new URL(LTA_BUS_ARRIVAL_URL);
   url.searchParams.set("BusStopCode", config.busStopCode);
@@ -181,23 +259,75 @@ async function sendTelegramMessage(config: Config, text: string): Promise<void> 
   }
 }
 
-Deno.serve(async (req: Request) => {
-  try {
-    const config = readConfig();
-    const authError = assertAuthorized(req, config);
-    if (authError) return authError;
+async function handleCron(config: Config): Promise<Response> {
+  const now = new Date();
+  const today = singaporeDateString(now);
 
-    const now = new Date();
-    const payload = await fetchBusArrivals(config);
-    const arrivals = parseArrivals(payload, now);
-    const message = composeMessage(config, arrivals, now);
-    await sendTelegramMessage(config, message);
-
+  if (await isPausedToday(config, today)) {
     return jsonResponse({
       ok: true,
       checkedAt: now.toISOString(),
-      sent: true,
+      skipped: "paused_for_today",
     });
+  }
+
+  const payload = await fetchBusArrivals(config);
+  const arrivals = parseArrivals(payload, now);
+  const message = composeMessage(config, arrivals, now);
+  await sendTelegramMessage(config, message);
+
+  return jsonResponse({
+    ok: true,
+    checkedAt: now.toISOString(),
+    sent: true,
+  });
+}
+
+async function handleTelegramWebhook(req: Request, config: Config): Promise<Response> {
+  const update = await req.json();
+  const message = update?.message ?? update?.edited_message;
+  const chatId = message?.chat?.id?.toString();
+  const text = typeof message?.text === "string" ? message.text : "";
+
+  if (chatId !== config.telegramChatId) {
+    return jsonResponse({ ok: true, ignored: "unauthorized_chat" });
+  }
+
+  const today = singaporeDateString(new Date());
+  const command = normalizeCommand(text);
+
+  if (PAUSE_COMMANDS.has(command)) {
+    await pauseToday(config, today, chatId);
+    await sendTelegramMessage(config, "Paused Bus 15 alerts for today. They will resume tomorrow.");
+    return jsonResponse({ ok: true, command, paused: today });
+  }
+
+  if (RESUME_COMMANDS.has(command)) {
+    await resumeToday(config, today);
+    await sendTelegramMessage(config, "Bus 15 alerts are active again for today.");
+    return jsonResponse({ ok: true, command, resumed: today });
+  }
+
+  await sendTelegramMessage(
+    config,
+    "Use stop, pause, or done to pause today. Use resume or start to reactivate today.",
+  );
+  return jsonResponse({ ok: true, command: command || null, help: true });
+}
+
+Deno.serve(async (req: Request) => {
+  try {
+    const config = readConfig();
+
+    if (isCronRequest(req, config)) {
+      return await handleCron(config);
+    }
+
+    if (isTelegramWebhookRequest(req, config)) {
+      return await handleTelegramWebhook(req, config);
+    }
+
+    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error(message);
