@@ -1,6 +1,10 @@
 .env
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
+.env.local
+.vercel
+node_modules
+__pycache__
+.DS_Store
+npm-debug.log*
+
+.vercel
+.env*

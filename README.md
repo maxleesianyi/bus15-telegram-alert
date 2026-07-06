@@ -1,6 +1,6 @@
 # Bus 15 Telegram Alert
 
-A small Supabase scheduler that checks real-time LTA bus arrivals for Bus 15 at stop `75591` on weekday mornings, then sends a private Telegram message with the next and subsequent bus timings.
+A small private automation that checks real-time LTA bus arrivals for Bus 15 at stop `75591`, then sends a Telegram alert on weekday mornings.
 
 The alert is designed around a 10 minute walk to the bus stop plus a 2 minute safety buffer. If the next bus is too soon to catch, it recommends the subsequent bus instead.
 
@@ -8,33 +8,42 @@ You can also reply to the Telegram bot with `stop`, `pause`, or `done` to silenc
 
 ## Current Setup
 
-This project now uses Supabase as the reliable scheduler:
+The live version now uses:
 
-- Supabase Edge Function: `bus15-telegram-alert`
-- Supabase Cron jobs:
-  - `bus15-alert-8am`
-  - `bus15-alert-9am`
-- Telegram reply commands for pausing/resuming the current day
-- GitHub Actions: manual testing only
+- Vercel Functions for the Bus 15 check endpoint and Telegram webhook
+- QStash for the weekday morning schedule
+- Upstash Redis for same-day pause state
+- Telegram for notifications and reply commands
 
-The old GitHub scheduled trigger has been removed because GitHub Actions scheduled jobs can run late.
+Supabase cron has been disabled. The older Supabase files are kept in this repository for release history, but Supabase is no longer the live scheduler.
+
+## Live Endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/api/health` | Public health check |
+| `/api/check` | Secured bus check endpoint |
+| `/api/telegram` | Secured Telegram webhook |
+
+Production URL:
+
+```text
+https://bus15-telegram-alert.vercel.app
+```
 
 ## Schedule
 
-Supabase Cron runs on weekdays at these Singapore times:
+QStash runs the live weekday schedule directly against `/api/check`.
 
-- 8:15 AM
-- 8:30 AM
-- 8:45 AM
-- 9:00 AM
-- 9:15 AM
-
-The cron expressions are stored in UTC:
-
-| UTC cron | Singapore time |
+| Singapore time | QStash cron |
 | --- | --- |
-| `15,30,45 0 * * 1-5` | 8:15, 8:30, 8:45 AM weekdays |
-| `0,15 1 * * 1-5` | 9:00, 9:15 AM weekdays |
+| 8:15, 8:30, 8:45 AM weekdays | `CRON_TZ=Asia/Singapore 15,30,45 8 * * 1-5` |
+| 9:00, 9:15 AM weekdays | `CRON_TZ=Asia/Singapore 0,15 9 * * 1-5` |
+
+The active QStash schedule IDs are:
+
+- `bus15-alert-8am-sgt`
+- `bus15-alert-9am-sgt`
 
 ## What The Telegram Message Includes
 
@@ -49,15 +58,67 @@ Subsequent: 18 min
 Best catchable: subsequent bus. Leave around 8:21 AM (6 min from now).
 ```
 
-If it is already time to leave, the message says:
+If no arrival data is available, the alert asks you to check the SBS/LTA app before leaving.
+
+## Required Secrets
+
+Set these in Vercel project environment variables:
 
 ```text
-Leave now for the next bus. It arrives in 11 min.
+LTA_ACCOUNT_KEY=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+CRON_SECRET=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+SERVICE_NO=15
+BUS_STOP_CODE=75591
+WALK_MINUTES=10
+BUFFER_MINUTES=2
 ```
 
-## Supabase Setup
+Set these only locally when creating or updating QStash schedules:
 
-See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the Edge Function, Cron, Vault, and secret setup.
+```text
+QSTASH_TOKEN=
+QSTASH_BASE_URL=https://qstash-us-east-1.upstash.io
+```
+
+Do not commit `.env`, Telegram bot tokens, LTA AccountKeys, `CRON_SECRET`, Redis tokens, or QStash tokens.
+
+## Setup And Test
+
+Install dependencies:
+
+```bash
+pnpm install
+```
+
+Run tests:
+
+```bash
+pnpm test
+```
+
+Create or update the QStash schedules:
+
+```bash
+pnpm run setup:qstash
+```
+
+Test the live endpoint without sending Telegram:
+
+```bash
+curl "https://bus15-telegram-alert.vercel.app/api/check?dryRun=1" \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
+
+Test the live endpoint and send Telegram:
+
+```bash
+curl -X POST "https://bus15-telegram-alert.vercel.app/api/check" \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
 
 ## Releases
 
@@ -65,35 +126,12 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and [RELEASE_PROCESS.md](RE
 
 Release note drafts are kept in [releases](releases/).
 
-## GitHub Actions
+## Legacy Versions
 
-The GitHub workflow is kept only for manual testing from the **Actions** tab. It does not run on a schedule.
-
-If you use Supabase as the live scheduler, do not re-enable the GitHub scheduled trigger unless you want duplicate Telegram alerts.
-
-## Local Test
-
-Create a local `.env` file from `.env.example`, fill in your values, then run:
-
-```bash
-python bus15_alert.py
-```
-
-To print the message without sending it to Telegram, set:
-
-```text
-DRY_RUN=true
-```
-
-## Adjusting The Automation
-
-For the Supabase scheduler, update these values in Supabase Edge Function secrets:
-
-| Setting | Default |
-| --- | --- |
-| `SERVICE_NO` | `15` |
-| `BUS_STOP_CODE` | `75591` |
-| `WALK_MINUTES` | `10` |
-| `BUFFER_MINUTES` | `2` |
+- `v0.1.0`: Initial GitHub Actions scheduler
+- `v0.2.0`: Simplified Telegram message and improved local script
+- `v0.3.0`: Supabase scheduler
+- `v0.4.0`: Telegram pause commands
+- `v0.5.0`: Vercel + QStash scheduler
 
 The script uses the official LTA DataMall Bus Arrival endpoint and does not scrape the SBS Transit website.

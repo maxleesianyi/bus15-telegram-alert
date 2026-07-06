@@ -8,6 +8,30 @@ This project follows semantic versioning:
 - `MINOR`: new scheduler/backend/features
 - `PATCH`: fixes, wording, small reliability improvements
 
+## [0.5.0] - 2026-07-07
+
+### Added
+
+- Added Vercel Functions implementation for `/api/health`, `/api/check`, and `/api/telegram`.
+- Added Upstash Redis pause-state storage for same-day `stop`, `pause`, and `done` replies.
+- Added QStash schedule setup script with stable schedule IDs:
+  - `bus15-alert-8am-sgt`
+  - `bus15-alert-9am-sgt`
+- Added Node test coverage for the Vercel implementation.
+- Added Vercel deployment configuration and QStash setup documentation.
+
+### Changed
+
+- Made Vercel + QStash the current live runtime and scheduler.
+- Moved away from Supabase Cron for the live weekday schedule.
+- Updated README to describe the current production architecture and testing path.
+
+### Notes
+
+- Vercel Hobby cron cannot run this multi-check morning schedule, so QStash is used for the scheduler.
+- Supabase cron is disabled but older Supabase files remain in the repository for release history.
+- Do not commit `.env`, Telegram bot tokens, LTA AccountKeys, Redis tokens, QStash tokens, or `CRON_SECRET` values.
+
 ## [0.4.0] - 2026-07-04
 
 ### Added

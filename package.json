@@ -1,0 +1,16 @@
+{
+  "name": "bus15-telegram-alert-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node tests/bus15.test.js",
+    "setup:qstash": "node scripts/setup-qstash-schedules.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -26,13 +26,32 @@ Recommended versioning:
 
 ## 3. Test
 
+For the current Vercel + QStash path:
+
+```bash
+pnpm test
+```
+
+Then confirm the live endpoint works:
+
+```bash
+curl "https://bus15-telegram-alert.vercel.app/api/check?dryRun=1" \
+  -H "Authorization: Bearer <CRON_SECRET>"
+```
+
+If the QStash schedules changed, rerun:
+
+```bash
+pnpm run setup:qstash
+```
+
 For the Python local/GitHub test path:
 
 ```bash
 python -m unittest discover -v
 ```
 
-For Supabase:
+For legacy Supabase:
 
 1. Confirm Edge Function secrets are set.
 2. Confirm Vault secrets are set.
@@ -73,11 +92,11 @@ v0.3.0 - Supabase scheduler
 Create:
 
 ```text
-v0.4.0 - Telegram pause commands
+v0.5.0 - Vercel + QStash scheduler
 ```
 
 Release notes:
 
 ```text
-Adds Telegram reply commands so stop, pause, or done pauses Bus 15 alerts for the current Singapore day, with resume/start to reactivate alerts.
+Migrates the live Bus 15 Telegram alert off Supabase Cron and onto Vercel + QStash + Upstash Redis.
 ```
