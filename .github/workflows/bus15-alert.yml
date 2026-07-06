@@ -2,6 +2,15 @@ name: Bus 15 Telegram Alert
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run the Vercel check without sending Telegram"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
   schedule:
     # GitHub cron uses UTC. These are 8:15, 8:30, 8:45, 9:00, 9:15 AM Singapore time.
     - cron: "15,30,45 0 * * 1-5"
@@ -15,6 +24,11 @@ jobs:
     steps:
       - name: Trigger Vercel Bus 15 alert
         run: |
+          url="https://bus15-telegram-alert.vercel.app/api/check"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            url="${url}?dryRun=1"
+          fi
+
           curl --fail-with-body --request POST \
             --header "x-cron-secret: ${{ secrets.BUS15_CRON_SECRET }}" \
-            https://bus15-telegram-alert.vercel.app/api/check
+            "$url"
