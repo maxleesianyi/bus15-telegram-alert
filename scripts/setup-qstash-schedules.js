@@ -6,16 +6,17 @@ const DEFAULT_QSTASH_BASE_URL = "https://qstash-us-east-1.upstash.io";
 
 const schedules = [
   {
-    id: "bus15-alert-8am-sgt",
-    window: "8am",
-    cron: "CRON_TZ=Asia/Singapore 15,30,45 8 * * 1-5",
+    id: "bus15-alert-745am-sgt",
+    window: "7:45am",
+    cron: "CRON_TZ=Asia/Singapore 45 7 * * 1-5",
   },
   {
-    id: "bus15-alert-9am-sgt",
-    window: "9am",
-    cron: "CRON_TZ=Asia/Singapore 0,15 9 * * 1-5",
+    id: "bus15-alert-8am-sgt",
+    window: "8am",
+    cron: "CRON_TZ=Asia/Singapore 0,15,30 8 * * 1-5",
   },
 ];
+const obsoleteScheduleIds = ["bus15-alert-9am-sgt"];
 
 function loadDotEnv(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -88,6 +89,25 @@ async function listMatchingSchedules(qstashToken) {
   );
 }
 
+async function deleteObsoleteSchedules(qstashToken) {
+  const result = await qstashFetch("/v2/schedules", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${qstashToken}` },
+  });
+  const existingIds = new Set(
+    (Array.isArray(result) ? result : []).map((schedule) => schedule.scheduleId),
+  );
+
+  for (const scheduleId of obsoleteScheduleIds) {
+    if (!existingIds.has(scheduleId)) continue;
+    await qstashFetch(`/v2/schedules/${scheduleId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${qstashToken}` },
+    });
+    console.log(`Removed obsolete ${scheduleId}`);
+  }
+}
+
 async function main() {
   loadDotEnv(path.join(process.cwd(), ".env.local"));
 
@@ -99,6 +119,8 @@ async function main() {
     await upsertSchedule(schedule, destination, qstashToken, cronSecret);
     console.log(`Upserted ${schedule.id}: ${schedule.cron}`);
   }
+
+  await deleteObsoleteSchedules(qstashToken);
 
   const activeSchedules = await listMatchingSchedules(qstashToken);
   console.log(

@@ -1,7 +1,11 @@
 const {
   PAUSE_COMMANDS,
   RESUME_COMMANDS,
+  composeLookupMessage,
+  fetchBusArrivals,
   normalizeCommand,
+  parseBusLookup,
+  parseArrivals,
   sendTelegramMessage,
 } = require("../lib/bus15");
 const { readConfig } = require("../lib/config");
@@ -39,6 +43,7 @@ module.exports = async function handler(req, res) {
 
     const today = singaporeDateString(new Date());
     const command = normalizeCommand(text);
+    const lookup = parseBusLookup(text);
 
     if (PAUSE_COMMANDS.has(command)) {
       await pauseToday(today, chatId);
@@ -55,9 +60,17 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 200, { ok: true, command, resumed: today });
     }
 
+    if (lookup) {
+      const now = new Date();
+      const payload = await fetchBusArrivals(config, lookup);
+      const arrivals = parseArrivals(payload, now);
+      await sendTelegramMessage(config, composeLookupMessage(lookup, arrivals, now));
+      return sendJson(res, 200, { ok: true, lookup });
+    }
+
     await sendTelegramMessage(
       config,
-      "Use stop, pause, or done to pause today. Use resume or start to reactivate today.",
+      "Send Bus 20 76953 for an arrival lookup. Use stop, pause, or done to pause Bus 15 alerts today. Use resume or start to reactivate today.",
     );
     return sendJson(res, 200, {
       ok: true,

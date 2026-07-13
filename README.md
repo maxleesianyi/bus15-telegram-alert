@@ -4,7 +4,7 @@ A small private automation that checks real-time LTA bus arrivals for Bus 15 at 
 
 The alert is designed around a 10 minute walk to the bus stop plus a 2 minute safety buffer. If the next bus is too soon to catch, it recommends the subsequent bus instead.
 
-You can also reply to the Telegram bot with `stop`, `pause`, or `done` to silence the remaining alerts for the current Singapore calendar day. Reply `resume` or `start` to reactivate alerts for the same day.
+You can also reply to the Telegram bot with `stop`, `pause`, or `done` to silence the remaining alerts for the current Singapore calendar day. Reply `resume` or `start` to reactivate alerts for the same day. Send a message such as `Bus 20 76953` to get the next two arrivals for any bus service and stop.
 
 ## Current Setup
 
@@ -37,13 +37,13 @@ QStash runs the live weekday schedule directly against `/api/check`.
 
 | Singapore time | QStash cron |
 | --- | --- |
-| 8:15, 8:30, 8:45 AM weekdays | `CRON_TZ=Asia/Singapore 15,30,45 8 * * 1-5` |
-| 9:00, 9:15 AM weekdays | `CRON_TZ=Asia/Singapore 0,15 9 * * 1-5` |
+| 7:45 AM weekdays | `CRON_TZ=Asia/Singapore 45 7 * * 1-5` |
+| 8:00, 8:15, 8:30 AM weekdays | `CRON_TZ=Asia/Singapore 0,15,30 8 * * 1-5` |
 
 The active QStash schedule IDs are:
 
+- `bus15-alert-745am-sgt`
 - `bus15-alert-8am-sgt`
-- `bus15-alert-9am-sgt`
 
 ## What The Telegram Message Includes
 
@@ -59,6 +59,14 @@ Best catchable: subsequent bus. Leave around 8:21 AM (6 min from now).
 ```
 
 If no arrival data is available, the alert asks you to check the SBS/LTA app before leaving.
+
+## Telegram Commands
+
+| Telegram message | Result |
+| --- | --- |
+| `Bus 20 76953` | Instantly returns the next and subsequent Bus 20 arrivals at stop 76953. |
+| `stop`, `pause`, or `done` | Silences only the remaining Bus 15 scheduled alerts for today. |
+| `resume` or `start` | Reactivates Bus 15 scheduled alerts for today. |
 
 ## Required Secrets
 

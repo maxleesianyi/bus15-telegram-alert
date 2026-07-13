@@ -8,6 +8,18 @@ This project follows semantic versioning:
 - `MINOR`: new scheduler/backend/features
 - `PATCH`: fixes, wording, small reliability improvements
 
+## [0.6.0] - 2026-07-13
+
+### Added
+
+- Added on-demand Telegram bus lookups. Send `Bus 20 76953` to receive the next and subsequent arrivals for that service and stop.
+- Added validation for the on-demand lookup format, keeping the Telegram webhook restricted to the configured chat.
+
+### Changed
+
+- Changed the weekday Bus 15 alert times to 7:45, 8:00, 8:15, and 8:30 AM Singapore time.
+- Removed the previous 8:45, 9:00, and 9:15 AM checks from the QStash schedule setup.
+
 ## [0.5.0] - 2026-07-07
 
 ### Added

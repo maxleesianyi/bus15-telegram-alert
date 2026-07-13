@@ -92,11 +92,11 @@ v0.3.0 - Supabase scheduler
 Create:
 
 ```text
-v0.5.0 - Vercel + QStash scheduler
+v0.6.0 - Earlier alerts and Telegram bus lookups
 ```
 
 Release notes:
 
 ```text
-Migrates the live Bus 15 Telegram alert off Supabase Cron and onto Vercel + QStash + Upstash Redis.
+Moves the weekday Bus 15 alerts to 7:45, 8:00, 8:15, and 8:30 AM Singapore time, and adds on-demand Telegram bus-stop lookups.
 ```

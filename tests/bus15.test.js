@@ -1,5 +1,11 @@
 const assert = require("node:assert/strict");
-const { composeMessage, normalizeCommand, parseArrivals } = require("../lib/bus15");
+const {
+  composeLookupMessage,
+  composeMessage,
+  normalizeCommand,
+  parseArrivals,
+  parseBusLookup,
+} = require("../lib/bus15");
 const {
   secondsUntilNextSingaporeDay,
   singaporeDateString,
@@ -45,6 +51,16 @@ const message = composeMessage(config, betterArrivals, now);
 assert.match(message, /Next: 7 min/);
 assert.match(message, /Subsequent: 19 min/);
 assert.match(message, /Best catchable: subsequent bus/);
+
+const lookup = parseBusLookup("Bus 20 76953");
+assert.deepEqual(lookup, { serviceNo: "20", busStopCode: "76953" });
+assert.deepEqual(parseBusLookup("20 76953"), null);
+assert.deepEqual(parseBusLookup("Bus 20 1234"), null);
+const lookupMessage = composeLookupMessage(lookup, betterArrivals, now);
+assert.match(lookupMessage, /Bus 20 at stop 76953/);
+assert.match(lookupMessage, /Next: 7 min/);
+assert.match(lookupMessage, /Subsequent: 19 min/);
+assert.doesNotMatch(lookupMessage, /Best catchable/);
 
 assert.equal(normalizeCommand("/pause@my_bot now"), "pause");
 assert.equal(normalizeCommand("DONE"), "done");
